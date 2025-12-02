@@ -1,1 +1,1 @@
-# DC-Motor-Postion-Control---Fuzzy-Simulation
+# DC-Motor-Postion-Control-Fuzzy-Simulation
