@@ -59,8 +59,7 @@ def simulate_motor_control(current_position, target_position, controller):
 
         delta_error = np.clip(delta_error, DELTA_ERROR_MIN, DELTA_ERROR_MAX)
 
-        control_signal = controller.compute_control(error, delta_error)
-
+        control_signal = controller.compute_control(error, delta_error, DT)
         voltage = control_signal * VOLTAGE_SCALE
 
         substeps = 10

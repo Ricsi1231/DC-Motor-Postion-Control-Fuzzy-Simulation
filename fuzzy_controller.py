@@ -15,6 +15,9 @@ class FuzzyMotorController:
     """
 
     def __init__(self):
+        self.integral = 0.0
+        self.ki = 0.1   
+
         self.error = ctrl.Antecedent(np.arange(ERROR_RANGE_MIN, ERROR_RANGE_MAX, 1), 'error')
 
         self.delta_error = ctrl.Antecedent(np.arange(DELTA_ERROR_RANGE_MIN, DELTA_ERROR_RANGE_MAX, 1), 'delta_error')
@@ -51,7 +54,7 @@ class FuzzyMotorController:
 
         self.simulation = ctrl.ControlSystemSimulation(self.control_system)
 
-    def compute_control(self, error_val, delta_error_val):
+    def compute_control(self, error_val, delta_error_val, dt):
         """
         Compute control signal using fuzzy inference.
 
@@ -62,10 +65,16 @@ class FuzzyMotorController:
         Returns:
             Control signal value
         """
+        self.integral += error_val * dt
+        self.integral = np.clip(self.integral, -300, 300)
+
         self.simulation.input['error'] = error_val
         self.simulation.input['delta_error'] = delta_error_val
         self.simulation.compute()
-        return self.simulation.output['control']
+
+        fuzzy_output = self.simulation.output['control']
+
+        return fuzzy_output + self.ki * self.integral
 
     def get_membership_functions(self):
         """

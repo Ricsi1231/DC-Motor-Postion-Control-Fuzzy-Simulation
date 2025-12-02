@@ -4,6 +4,7 @@ matplotlib.use('TkAgg')
 import numpy as np
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from skfuzzy import control as ctrl
 
 def plot_membership_functions(controller):
     """
@@ -83,19 +84,21 @@ def plot_control_surface(controller):
     error_range = np.linspace(-180, 180, 30)
     delta_error_range = np.linspace(-50, 50, 30)
     x, y = np.meshgrid(error_range, delta_error_range)
-    z = np.zeros_like(x)
+    z = np.zeros_like(x, dtype=float)
 
-    for i in range(30):
-        for j in range(30):
-            try:
-                z[i, j] = controller.compute_control(x[i, j], y[i, j])
-            except:
-                z[i, j] = 0
+    sim = ctrl.ControlSystemSimulation(controller.control_system)
+
+    for i in range(x.shape[0]):
+        for j in range(x.shape[1]):
+            sim.input['error'] = x[i, j]
+            sim.input['delta_error'] = y[i, j]
+            sim.compute()
+            z[i, j] = sim.output['control']
 
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
     surf = ax.plot_surface(x, y, z, rstride=1, cstride=1, cmap='viridis',
-                          linewidth=0.4, antialiased=True)
+                           linewidth=0.4, antialiased=True)
 
     ax.set_xlabel('Error (degrees)')
     ax.set_ylabel('Delta Error (degrees/step)')
