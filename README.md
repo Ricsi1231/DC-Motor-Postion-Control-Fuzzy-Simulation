@@ -182,3 +182,11 @@ Actual Position: 44.89°
 Measured Position: 44.82°
 Error: 0.18°
 ```
+
+## License
+
+© 2025 Nagy Richárd.  
+This project was created as part of the **Intelligent Control Systems** course.
+
+It is intended for **educational and prototyping purposes only**.  
+Commercial use, distribution, or modification requires **prior written permission** from the author.
