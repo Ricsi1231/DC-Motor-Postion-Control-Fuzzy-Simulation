@@ -16,7 +16,7 @@ class FuzzyMotorController:
 
     def __init__(self):
         self.integral = 0.0
-        self.ki = 0.1   
+        self.ki = 0.5   
 
         self.error = ctrl.Antecedent(np.arange(ERROR_RANGE_MIN, ERROR_RANGE_MAX, 1), 'error')
 
