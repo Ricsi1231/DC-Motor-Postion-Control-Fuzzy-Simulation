@@ -9,22 +9,68 @@ from skfuzzy import control as ctrl
 def plot_membership_functions(controller):
     """
     Plot membership functions for error, delta error, and control signal.
+    All membership functions are displayed in subplots within one figure.
 
     Args:
         controller: FuzzyMotorController instance
     """
     error, delta_error, control = controller.get_membership_functions()
 
-    error.view()
-    plt.title('Error Membership Functions')
-    plt.show()
+    # Define colors and labels for membership functions
+    colors = {'N': '#E74C3C', 'Z': '#27AE60', 'P': '#3498DB'}
+    labels = {'N': 'Negative (N)', 'Z': 'Zero (Z)', 'P': 'Positive (P)'}
 
-    delta_error.view()
-    plt.title('Delta Error Membership Functions')
-    plt.show()
+    fig, axes = plt.subplots(3, 1, figsize=(12, 10))
 
-    control.view()
-    plt.title('Control Signal Membership Functions')
+    # Plot error membership functions
+    for term_name in ['N', 'Z', 'P']:
+        if term_name in error.terms:
+            mf = error[term_name].mf
+            axes[0].fill_between(error.universe, mf, alpha=0.3, color=colors[term_name])
+            axes[0].plot(error.universe, mf, linewidth=2.5, color=colors[term_name], label=labels[term_name])
+    axes[0].set_xlabel('Error (degrees)', fontsize=11)
+    axes[0].set_ylabel('Membership Degree', fontsize=11)
+    axes[0].set_title('Error Membership Functions', fontsize=13, fontweight='bold')
+    axes[0].legend(loc='upper right', fontsize=10)
+    axes[0].set_ylim(-0.05, 1.1)
+    axes[0].set_xlim(error.universe.min(), error.universe.max())
+    axes[0].axhline(y=0, color='black', linewidth=0.5)
+    axes[0].axhline(y=1, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
+    axes[0].grid(True, alpha=0.3)
+
+    # Plot delta error membership functions
+    for term_name in ['N', 'Z', 'P']:
+        if term_name in delta_error.terms:
+            mf = delta_error[term_name].mf
+            axes[1].fill_between(delta_error.universe, mf, alpha=0.3, color=colors[term_name])
+            axes[1].plot(delta_error.universe, mf, linewidth=2.5, color=colors[term_name], label=labels[term_name])
+    axes[1].set_xlabel('Delta Error (degrees/step)', fontsize=11)
+    axes[1].set_ylabel('Membership Degree', fontsize=11)
+    axes[1].set_title('Delta Error Membership Functions', fontsize=13, fontweight='bold')
+    axes[1].legend(loc='upper right', fontsize=10)
+    axes[1].set_ylim(-0.05, 1.1)
+    axes[1].set_xlim(delta_error.universe.min(), delta_error.universe.max())
+    axes[1].axhline(y=0, color='black', linewidth=0.5)
+    axes[1].axhline(y=1, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
+    axes[1].grid(True, alpha=0.3)
+
+    # Plot control membership functions
+    for term_name in ['N', 'Z', 'P']:
+        if term_name in control.terms:
+            mf = control[term_name].mf
+            axes[2].fill_between(control.universe, mf, alpha=0.3, color=colors[term_name])
+            axes[2].plot(control.universe, mf, linewidth=2.5, color=colors[term_name], label=labels[term_name])
+    axes[2].set_xlabel('Control Signal', fontsize=11)
+    axes[2].set_ylabel('Membership Degree', fontsize=11)
+    axes[2].set_title('Control Signal Membership Functions', fontsize=13, fontweight='bold')
+    axes[2].legend(loc='upper right', fontsize=10)
+    axes[2].set_ylim(-0.05, 1.1)
+    axes[2].set_xlim(control.universe.min(), control.universe.max())
+    axes[2].axhline(y=0, color='black', linewidth=0.5)
+    axes[2].axhline(y=1, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
+    axes[2].grid(True, alpha=0.3)
+
+    plt.tight_layout()
     plt.show()
 
 
