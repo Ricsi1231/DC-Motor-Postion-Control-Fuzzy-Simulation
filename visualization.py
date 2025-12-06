@@ -16,13 +16,11 @@ def plot_membership_functions(controller):
     """
     error, delta_error, control = controller.get_membership_functions()
 
-    # Define colors and labels for membership functions
     colors = {'N': '#E74C3C', 'Z': '#27AE60', 'P': '#3498DB'}
     labels = {'N': 'Negative (N)', 'Z': 'Zero (Z)', 'P': 'Positive (P)'}
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 10))
 
-    # Plot error membership functions
     for term_name in ['N', 'Z', 'P']:
         if term_name in error.terms:
             mf = error[term_name].mf
@@ -38,7 +36,6 @@ def plot_membership_functions(controller):
     axes[0].axhline(y=1, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
     axes[0].grid(True, alpha=0.3)
 
-    # Plot delta error membership functions
     for term_name in ['N', 'Z', 'P']:
         if term_name in delta_error.terms:
             mf = delta_error[term_name].mf
@@ -54,7 +51,6 @@ def plot_membership_functions(controller):
     axes[1].axhline(y=1, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
     axes[1].grid(True, alpha=0.3)
 
-    # Plot control membership functions
     for term_name in ['N', 'Z', 'P']:
         if term_name in control.terms:
             mf = control[term_name].mf
