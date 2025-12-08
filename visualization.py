@@ -9,22 +9,64 @@ from skfuzzy import control as ctrl
 def plot_membership_functions(controller):
     """
     Plot membership functions for error, delta error, and control signal.
+    All membership functions are displayed in subplots within one figure.
 
     Args:
         controller: FuzzyMotorController instance
     """
     error, delta_error, control = controller.get_membership_functions()
 
-    error.view()
-    plt.title('Error Membership Functions')
-    plt.show()
+    colors = {'N': '#E74C3C', 'Z': '#27AE60', 'P': '#3498DB'}
+    labels = {'N': 'Negative (N)', 'Z': 'Zero (Z)', 'P': 'Positive (P)'}
 
-    delta_error.view()
-    plt.title('Delta Error Membership Functions')
-    plt.show()
+    fig, axes = plt.subplots(3, 1, figsize=(12, 10))
 
-    control.view()
-    plt.title('Control Signal Membership Functions')
+    for term_name in ['N', 'Z', 'P']:
+        if term_name in error.terms:
+            mf = error[term_name].mf
+            axes[0].fill_between(error.universe, mf, alpha=0.3, color=colors[term_name])
+            axes[0].plot(error.universe, mf, linewidth=2.5, color=colors[term_name], label=labels[term_name])
+    axes[0].set_xlabel('Error (degrees)', fontsize=11)
+    axes[0].set_ylabel('Membership Degree', fontsize=11)
+    axes[0].set_title('Error Membership Functions', fontsize=13, fontweight='bold')
+    axes[0].legend(loc='upper right', fontsize=10)
+    axes[0].set_ylim(-0.05, 1.1)
+    axes[0].set_xlim(error.universe.min(), error.universe.max())
+    axes[0].axhline(y=0, color='black', linewidth=0.5)
+    axes[0].axhline(y=1, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
+    axes[0].grid(True, alpha=0.3)
+
+    for term_name in ['N', 'Z', 'P']:
+        if term_name in delta_error.terms:
+            mf = delta_error[term_name].mf
+            axes[1].fill_between(delta_error.universe, mf, alpha=0.3, color=colors[term_name])
+            axes[1].plot(delta_error.universe, mf, linewidth=2.5, color=colors[term_name], label=labels[term_name])
+    axes[1].set_xlabel('Delta Error (degrees/step)', fontsize=11)
+    axes[1].set_ylabel('Membership Degree', fontsize=11)
+    axes[1].set_title('Delta Error Membership Functions', fontsize=13, fontweight='bold')
+    axes[1].legend(loc='upper right', fontsize=10)
+    axes[1].set_ylim(-0.05, 1.1)
+    axes[1].set_xlim(delta_error.universe.min(), delta_error.universe.max())
+    axes[1].axhline(y=0, color='black', linewidth=0.5)
+    axes[1].axhline(y=1, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
+    axes[1].grid(True, alpha=0.3)
+
+    for term_name in ['N', 'Z', 'P']:
+        if term_name in control.terms:
+            mf = control[term_name].mf
+            axes[2].fill_between(control.universe, mf, alpha=0.3, color=colors[term_name])
+            axes[2].plot(control.universe, mf, linewidth=2.5, color=colors[term_name], label=labels[term_name])
+    axes[2].set_xlabel('Control Signal', fontsize=11)
+    axes[2].set_ylabel('Membership Degree', fontsize=11)
+    axes[2].set_title('Control Signal Membership Functions', fontsize=13, fontweight='bold')
+    axes[2].legend(loc='upper right', fontsize=10)
+    axes[2].set_ylim(-0.05, 1.1)
+    axes[2].set_xlim(control.universe.min(), control.universe.max())
+    axes[2].axhline(y=0, color='black', linewidth=0.5)
+    axes[2].axhline(y=1, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
+    axes[2].grid(True, alpha=0.3)
+
+    plt.tight_layout()
     plt.show()
 
 
@@ -74,6 +116,52 @@ def plot_simulation_results(time_steps, actual_positions, targets, errors, contr
     plt.show()
 
 
+def plot_pid_results(time_steps, actual_positions, targets, errors, control_signals, measured_positions=None):
+    """
+    Plot PID simulation results including position, error, and control signals.
+
+    Args:
+        time_steps: List of time values
+        actual_positions: List of actual motor positions
+        targets: List of target positions
+        errors: List of position errors
+        control_signals: List of control signal values
+        measured_positions: List of encoder measurements (optional)
+    """
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+
+    axes[0, 0].plot(time_steps, actual_positions, 'b-', linewidth=2, label='Actual Position')
+    if measured_positions is not None:
+        axes[0, 0].plot(time_steps, measured_positions, 'c--', linewidth=1.5, alpha=0.7, label='Encoder Reading')
+    axes[0, 0].plot(time_steps, targets, 'r--', linewidth=2, label='Target Position')
+    axes[0, 0].set_xlabel('Time (s)')
+    axes[0, 0].set_ylabel('Position (degrees)')
+    axes[0, 0].set_title('Motor Position vs Target (PID Control)')
+    axes[0, 0].legend()
+    axes[0, 0].grid(True)
+
+    axes[0, 1].plot(time_steps, errors, 'g-', linewidth=2)
+    axes[0, 1].set_xlabel('Time (s)')
+    axes[0, 1].set_ylabel('Error (degrees)')
+    axes[0, 1].set_title('Position Error Over Time')
+    axes[0, 1].grid(True)
+
+    axes[1, 0].plot(time_steps, control_signals, 'm-', linewidth=2)
+    axes[1, 0].set_xlabel('Time (s)')
+    axes[1, 0].set_ylabel('Control Signal')
+    axes[1, 0].set_title('Control Signal Over Time (PID Output)')
+    axes[1, 0].grid(True)
+
+    axes[1, 1].plot(errors, control_signals, 'c-', linewidth=1.5)
+    axes[1, 1].set_xlabel('Error (degrees)')
+    axes[1, 1].set_ylabel('Control Signal')
+    axes[1, 1].set_title('Control Signal vs Error')
+    axes[1, 1].grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+
 def plot_control_surface(controller):
     """
     Plot 3D control surface showing control output for error and delta error.
@@ -109,7 +197,7 @@ def plot_control_surface(controller):
     plt.show()
 
 
-def plot_final_summary(current_pos, target_pos, final_pos, steps):
+def plot_final_summary(current_pos, target_pos, final_pos, steps, controller_type="Fuzzy"):
     """
     Plot summary bar chart showing initial, target, and final positions.
 
@@ -118,6 +206,7 @@ def plot_final_summary(current_pos, target_pos, final_pos, steps):
         target_pos: Target position in degrees
         final_pos: Final achieved position in degrees
         steps: Number of simulation steps to converge
+        controller_type: Type of controller used ('Fuzzy' or 'PID')
     """
     fig, ax = plt.subplots(figsize=(8, 6))
 
@@ -135,7 +224,7 @@ def plot_final_summary(current_pos, target_pos, final_pos, steps):
                 f'{pos:.1f}°', ha='center', va=va, fontsize=12, fontweight='bold')
 
     ax.set_ylabel('Position (degrees)', fontsize=12)
-    ax.set_title(f'Motor Position Control Summary\n(Converged in {steps} steps)', fontsize=14)
+    ax.set_title(f'Motor Position Control Summary ({controller_type})\n(Converged in {steps} steps)', fontsize=14)
     ax.grid(True, axis='y', alpha=0.3)
 
     min_pos = min(positions)

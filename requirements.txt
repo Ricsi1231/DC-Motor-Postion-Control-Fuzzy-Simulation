@@ -3,3 +3,4 @@ scipy
 networkx
 scikit-fuzzy
 matplotlib
+simple-pid
