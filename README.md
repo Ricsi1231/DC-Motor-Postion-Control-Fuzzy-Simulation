@@ -1,410 +1,260 @@
-# DC Motor Position Control - Fuzzy & PID Simulation
+# DC Motor Position Control — Fuzzy & PID Simulation
 
-A comprehensive simulation system for DC motor position control comparing **Fuzzy Logic** and **PID** control strategies. Features realistic motor physics, encoder feedback with quantization and noise, and extensive visualization capabilities.
+[![CI](https://github.com/Ricsi1231/DC-Motor-Postion-Control-Fuzzy-Simulation/actions/workflows/ci.yml/badge.svg)](https://github.com/Ricsi1231/DC-Motor-Postion-Control-Fuzzy-Simulation/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/dc-motor-fuzzy-sim.svg)](https://pypi.org/project/dc-motor-fuzzy-sim/)
+[![Python versions](https://img.shields.io/pypi/pyversions/dc-motor-fuzzy-sim.svg)](https://pypi.org/project/dc-motor-fuzzy-sim/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+A closed-loop simulation of DC motor position control comparing **fuzzy logic** and **PID**
+strategies. It models the motor's electrical and mechanical dynamics, feeds back through a
+realistic encoder (discrete quantization plus Gaussian noise), and plots the result.
 
 ## Features
 
-- **Dual Control Strategies**: Fuzzy Logic Controller (9 rules with integral term) and traditional PID Controller
-- **Realistic Motor Physics**: First-order electrical and mechanical dynamics with back-EMF modeling
-- **Encoder Simulation**: Discrete quantization (1000 PPR) with Gaussian measurement noise
-- **Visualization**: Membership functions, 3D control surfaces, simulation results, and convergence plots
-- **Modular Architecture**: Clean separation of motor model, sensors, controllers, and visualization
-
-## Requirements
-
-- Python 3.x
-- numpy
-- scipy
-- scikit-fuzzy
-- matplotlib
-- simple-pid
-- networkx
+- **Two control strategies** — a 9-rule fuzzy logic controller with an integral term, and a
+  classical PID controller, both behind one common interface.
+- **Realistic motor physics** — coupled first-order electrical and mechanical dynamics with
+  back-EMF, integrated with explicit Euler at 10 substeps per control period.
+- **Encoder simulation** — 1000 PPR quantization with Gaussian measurement noise from an
+  injectable random generator, so every run is reproducible from a seed.
+- **Visualization** — membership functions, a 3D fuzzy control surface, time-series results, and
+  a summary chart. Works headless: plots can be written straight to PNG.
+- **Typed and tested** — a fully type-annotated package with 200+ tests and ~98% coverage.
 
 ## Installation
 
-### Using setup script (recommended)
-
 ```bash
-./setup.sh
+pip install dc-motor-fuzzy-sim
 ```
 
-This creates a virtual environment and installs all dependencies.
+Requires Python 3.10 or newer.
 
-### Manual installation
+<details>
+<summary>Development install</summary>
 
 ```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+git clone https://github.com/Ricsi1231/DC-Motor-Postion-Control-Fuzzy-Simulation.git
+cd DC-Motor-Postion-Control-Fuzzy-Simulation
+./setup.sh                 # creates .venv, installs -e '.[dev]', sets up pre-commit
+source .venv/bin/activate
 ```
+
+</details>
 
 ## Usage
 
-### Using the run script
+### Command line
 
 ```bash
-# Fuzzy controller (default)
-./run_simulation.sh start_position=-90 end_position=45
-
-# PID controller
-./run_simulation.sh start_position=-90 end_position=45 controller=pid
+dc-motor-sim <start> <target> [options]
 ```
-
-### Direct Python execution
 
 ```bash
-python main.py <start_position> <target_position> [fuzzy|pid]
+dc-motor-sim -90 45                       # fuzzy controller (default)
+dc-motor-sim -90 45 --controller pid      # PID controller
+dc-motor-sim 0 90 --seed 42               # reproducible encoder noise
+dc-motor-sim 0 90 --no-show --output-dir plots   # headless: write PNGs
+dc-motor-sim 0 90 --no-plot               # numbers only
 ```
 
-**Arguments:**
-- `start_position`: Initial motor position in degrees (-180 to 180)
-- `target_position`: Target motor position in degrees (-180 to 180)
-- `controller`: Optional - `fuzzy` (default) or `pid`
+| Option | Description | Default |
+|---|---|---|
+| `start`, `target` | Positions in degrees, within ±180 | required |
+| `-c`, `--controller` | `fuzzy` or `pid` | `fuzzy` |
+| `--output-dir DIR` | Write plots as PNG files into `DIR` | none |
+| `--no-show` | Do not open plot windows (implied when there is no display) | off |
+| `--no-plot` | Skip plotting entirely | off |
+| `--seed N` | Seed the encoder noise for a reproducible run | random |
+| `--max-steps N` | Maximum control steps | 300 |
+| `--noise-std DEG` | Encoder noise standard deviation | 0.1 |
+| `--ppr N` | Encoder pulses per revolution | 1000 |
+| `-v`, `--verbose` | Log every progress line | off |
 
-**Examples:**
-```bash
-python main.py 0 90 fuzzy    # Start at 0°, target 90° with Fuzzy
-python main.py -45 45 pid    # Start at -45°, target 45° with PID
-python main.py 0 180         # Default fuzzy controller
-```
+Invalid input exits with status `2`. `python -m dc_motor_sim` is equivalent to the console script.
 
-## Project Structure
-
-```
-├── main.py                 # Entry point and simulation orchestration
-├── fuzzy_controller.py     # Fuzzy logic controller (9 rules + integral)
-├── pid_controller.py       # PID controller wrapper
-├── dc_motor_model.py       # DC motor physics simulation
-├── encoder_sensor.py       # Encoder with quantization & noise
-├── visualization.py        # Matplotlib plotting functions
-├── motor_parameters.py     # Configuration constants
-├── run_simulation.sh       # Bash wrapper script
-├── setup.sh                # Environment setup
-└── requirements.txt        # Python dependencies
-```
-
-## Python Modules Documentation
-
-### main.py
-
-The entry point that orchestrates the entire simulation.
-
-**Key Functions:**
-
-| Function | Description |
-|----------|-------------|
-| `simulate_motor_control_fuzzy()` | Runs closed-loop simulation with fuzzy controller |
-| `simulate_motor_control_pid()` | Runs closed-loop simulation with PID controller |
-| `main()` | CLI interface, argument parsing, and execution flow |
-
-**Simulation Loop Logic:**
-```python
-for step in range(MAX_SIMULATION_STEPS):
-    # 1. Read encoder (quantized + noisy)
-    measured_position = encoder.read_position(actual_position)
-
-    # 2. Calculate errors
-    error = target - measured_position
-    delta_error = error - previous_error
-
-    # 3. Compute control signal
-    control = controller.compute_control(error, delta_error, dt)
-
-    # 4. Apply voltage to motor (10 substeps for accuracy)
-    voltage = control * VOLTAGE_SCALE
-    for _ in range(10):
-        motor.step(voltage, dt/10)
-
-    # 5. Check convergence
-    if abs(error) < 0.5 and abs(delta_error) < 0.5:
-        break
-```
-
-### dc_motor_model.py
-
-Simulates realistic DC motor physics using first-order coupled differential equations.
-
-**Class: `DCMotorModel`**
+### Python API
 
 ```python
-class DCMotorModel:
-    def __init__(self, initial_position_deg=0.0)
-    def step(self, voltage, dt) -> None
-    def get_position_deg() -> float
-    def get_velocity_deg_per_sec() -> float
-    def get_current() -> float
-    def reset() -> None
+from dc_motor_sim import FuzzyMotorController, PIDMotorController, run_simulation
+import numpy as np
+
+result = run_simulation(
+    FuzzyMotorController(),
+    start_deg=-90.0,
+    target_deg=45.0,
+    rng=np.random.default_rng(42),   # reproducible encoder noise
+)
+
+print(result.summary())
+print(result.final_error, result.overshoot, result.converged)
+
+# Every series is a numpy array of length steps + 1
+result.time, result.actual_position, result.control, result.current
 ```
 
-**Physics Equations:**
+Plotting is opt-in and never blocks unless you ask it to:
 
-*Electrical Circuit (Armature):*
-```
-L·(di/dt) + R·i = V_applied - K_b·ω
-```
+```python
+from dc_motor_sim.viz import plot_simulation_results
 
-*Mechanical System:*
-```
-J·(dω/dt) = K_m·i - K_f·ω
-dθ/dt = ω
+fig = plot_simulation_results(result, save_path="results.png", show=False)
 ```
 
-**Motor Parameters:**
+### Configuration
+
+All tunables live in frozen, self-validating dataclasses in `dc_motor_sim.config`:
+
+```python
+import dataclasses
+from dc_motor_sim import EncoderParams, MotorParams, SimParams, run_simulation, PIDMotorController
+
+result = run_simulation(
+    PIDMotorController(),
+    0.0, 90.0,
+    sim_params=dataclasses.replace(SimParams(), max_steps=500),
+    motor_params=MotorParams(R=2.0),
+    encoder_params=EncoderParams(ppr=2048, noise_std=0.05),
+)
+```
+
+## Project structure
+
+```
+version.txt                # single source of truth for the version
+src/dc_motor_sim/
+├── config.py              # frozen, validated parameter dataclasses
+├── cli.py                 # argparse command line interface
+├── model/dc_motor.py      # DCMotorModel — physics
+├── sensors/encoder.py     # RotaryEncoder — quantization + noise
+├── control/
+│   ├── base.py            # PositionController protocol
+│   ├── fuzzy.py           # FuzzyMotorController
+│   └── pid.py             # PIDMotorController
+├── simulation/
+│   ├── runner.py          # run_simulation — the closed loop
+│   └── result.py          # SimulationResult
+└── viz/                   # backend selection + plotting
+scripts/bump_version.py    # semver bump used by the release pipeline
+tests/
+├── unit/                  # per-module tests
+└── integration/           # closed-loop, CLI, and golden-trace tests
+docs/paper/                # seminar paper (Hungarian)
+```
+
+## How it works
+
+Each control step, at 1 kHz:
+
+1. **Encoder reads** the true shaft angle — quantized to 1000 PPR (0.36°/count), plus Gaussian
+   noise (σ = 0.1° by default).
+2. **Error terms**: `error = target − measured`, and its step-to-step change.
+3. **Controller computes** a signal in roughly ±100.
+   Fuzzy: fuzzification → 9-rule inference → defuzzification, plus a clamped integral term.
+   PID: `Kp·e + Ki·∫e + Kd·de/dt`, saturated to ±100.
+4. **Motor integrates** `voltage = control × 0.082` over 10 substeps of 100 µs each.
+5. **Convergence check**: stop when `|error| < 0.5°` and `|Δerror| < 0.5°`.
+
+### Why 10 substeps
+
+Explicit Euler is stable only while the integration step stays below the electrical time constant
+`L/R = 250 µs`. The 1 ms control period exceeds that and diverges; `1 ms / 10 = 100 µs` does not.
+`tests/unit/test_dc_motor.py` asserts both halves of this, so the substepping cannot be
+"simplified" away by accident.
+
+## Physics
+
+*Electrical:* `L·di/dt + R·i = V − K_b·ω`
+*Mechanical:* `J·dω/dt = K_m·i − K_f·ω`
+*Kinematic:* `dθ/dt = ω`
 
 | Parameter | Value | Description |
-|-----------|-------|-------------|
-| J | 3.2e-6 kg·m² | Moment of inertia |
-| K_f | 3.5e-6 N·m·s/rad | Friction coefficient |
-| K_m | 0.03 N·m/A | Torque constant |
-| K_b | 0.03 V·s/rad | Back-EMF constant |
-| R | 4.0 Ω | Armature resistance |
-| L | 0.001 H | Armature inductance |
+|---|---|---|
+| `J` | 3.2e-6 kg·m² | Moment of inertia |
+| `K_f` | 3.5e-6 N·m·s/rad | Viscous friction coefficient |
+| `K_m` | 0.03 N·m/A | Torque constant |
+| `K_b` | 0.03 V·s/rad | Back-EMF constant |
+| `R` | 4.0 Ω | Armature resistance |
+| `L` | 0.001 H | Armature inductance |
 
-**State Variables:**
-- `position_rad`: Angular position (radians)
-- `omega`: Angular velocity (rad/s)
-- `current`: Armature current (A)
+Steady state: `ω/V = K_m / (K_f·R + K_m·K_b)` ≈ 32.8 rad/s per volt.
 
-**Integration Method:** Explicit Euler with configurable time step
+## Fuzzy controller design
 
-### encoder_sensor.py
+Error, delta-error, and control are each partitioned into Negative / Zero / Positive sets.
 
-Simulates a rotary encoder with realistic quantization and measurement noise.
+| Error \ Δ Error | Negative | Zero | Positive |
+|---|---|---|---|
+| **Negative** | N | N | Z |
+| **Zero** | Z | Z | Z |
+| **Positive** | Z | P | P |
 
-**Class: `RotaryEncoder`**
+Membership functions (trapezoidal for N and P, triangular for Z):
 
-```python
-class RotaryEncoder:
-    def __init__(self, pulses_per_revolution=1000, noise_std=0.1)
-    def read_position(actual_position_deg) -> float
-    def get_count() -> int
-    def get_resolution() -> float
-    def get_velocity(dt) -> float
-    def reset() -> None
-```
+- **Error**: N(−180, −180, −30, −5), Z(−8, 0, 8), P(5, 30, 180, 180)
+- **Δ Error**: N(−50, −50, −6, −1), Z(−2, 0, 2), P(1, 6, 50, 50)
+- **Control**: N(−100, −100, −35, −10), Z(−15, 0, 15), P(10, 35, 100, 100)
 
-**Encoder Characteristics:**
-- **Resolution**: 1000 PPR (0.36° per count)
-- **Noise**: Gaussian with σ = 0.1°
-- **Quantization**: Rounds to nearest encoder count
+An integral term (`Ki = 0.5`, clamped to ±300) is added to the defuzzified output to remove the
+steady-state offset that pure inference leaves behind.
 
-**Processing Pipeline:**
-```
-Actual Position → Quantize to Counts → Add Gaussian Noise → Output
-```
+## Controller comparison
 
-### fuzzy_controller.py
-
-Implements a fuzzy logic controller using scikit-fuzzy.
-
-**Class: `FuzzyMotorController`**
-
-```python
-class FuzzyMotorController:
-    def __init__()
-    def compute_control(error, delta_error, dt) -> float
-    def get_membership_functions() -> tuple
-```
-
-**Fuzzy System Design:**
-
-*Input Variables:*
-| Variable | Range | Membership Sets |
-|----------|-------|-----------------|
-| Error | -180° to 180° | Negative (N), Zero (Z), Positive (P) |
-| Delta Error | -50 to 50 | Negative (N), Zero (Z), Positive (P) |
-
-*Output Variable:*
-| Variable | Range | Membership Sets |
-|----------|-------|-----------------|
-| Control | -100 to 100 | Negative (N), Zero (Z), Positive (P) |
-
-**Membership Functions:**
-- Error: Trapezoidal - N(-180,-180,-30,-5), Triangular - Z(-8,0,8), Trapezoidal - P(5,30,180,180)
-- Delta Error: Trapezoidal - N(-50,-50,-6,-1), Triangular - Z(-2,0,2), Trapezoidal - P(1,6,50,50)
-- Control: Trapezoidal - N(-100,-100,-35,-10), Triangular - Z(-15,0,15), Trapezoidal - P(10,35,100,100)
-
-**Rule Base (9 rules):**
-
-| Error \ Delta | Negative | Zero | Positive |
-|---------------|----------|------|----------|
-| **Negative**  | N        | N    | Z        |
-| **Zero**      | Z        | Z    | Z        |
-| **Positive**  | Z        | P    | P        |
-
-**Integral Term:** Ki = 0.5 (cumulative error, clipped to [-300, 300])
-
-### pid_controller.py
-
-Wraps the `simple-pid` library for PID control.
-
-**Class: `PIDMotorController`**
-
-```python
-class PIDMotorController:
-    def __init__(self, kp=2.0, ki=0.5, kd=0.1)
-    def set_target(target) -> None
-    def compute_control(measured_position, dt) -> float
-    def reset() -> None
-    def set_tunings(kp, ki, kd) -> None
-    def get_components() -> tuple  # Returns (P, I, D) terms
-```
-
-**PID Parameters:**
-| Parameter | Value | Purpose |
-|-----------|-------|---------|
-| Kp | 2.0 | Proportional gain - main response |
-| Ki | 0.5 | Integral gain - eliminates steady-state error |
-| Kd | 0.1 | Derivative gain - reduces overshoot |
-| Output limits | [-100, 100] | Control signal bounds |
-
-### motor_parameters.py
-
-Centralized configuration for all simulation parameters.
-
-**Motor Physics:**
-```python
-J = 3.2e-6          # Moment of inertia (kg·m²)
-K_f = 3.5e-6        # Friction coefficient (N·m·s/rad)
-K_m = 0.03          # Motor torque constant (N·m/A)
-K_b = 0.03          # Back-EMF constant (V·s/rad)
-R = 4.0             # Armature resistance (Ω)
-L = 0.001           # Armature inductance (H)
-```
-
-**Control Parameters:**
-```python
-DT = 0.001                          # Time step (1 ms)
-VOLTAGE_SCALE = 0.082               # Control to voltage scaling
-MAX_SIMULATION_STEPS = 300          # Max steps (0.3 seconds)
-CONVERGENCE_THRESHOLD_POSITION = 0.5  # Position threshold (°)
-CONVERGENCE_THRESHOLD_DELTA = 0.5     # Error rate threshold (°)
-```
-
-**Encoder Settings:**
-```python
-ENCODER_PPR = 1000      # Pulses per revolution
-ENCODER_NOISE_STD = 0.1 # Measurement noise (°)
-```
-
-### visualization.py
-
-Matplotlib-based visualization functions.
-
-**Functions:**
-
-| Function | Description |
-|----------|-------------|
-| `plot_membership_functions(controller)` | 3-panel plot of fuzzy membership functions |
-| `plot_control_surface(controller)` | 3D surface plot of fuzzy output |
-| `plot_simulation_results(...)` | 2x2 plot: position, error, control, phase |
-| `plot_pid_results(...)` | Same as above for PID controller |
-| `plot_final_summary(...)` | Bar chart comparing initial/target/final |
-
-**Visualization Features:**
-- Color-coded membership functions (Red/Green/Blue for N/Z/P)
-- Interactive 3D control surface with 30×30 grid
-- Phase plane plot (control signal vs error)
-- Encoder readings shown as dashed lines
-
-## Simulation Details
-
-### Control Loop Timing
-- **Control frequency**: 1000 Hz (1 ms per step)
-- **Motor substeps**: 10 per control step (0.1 ms integration)
-- **Maximum duration**: 300 ms (300 steps)
-
-### Convergence Criteria
-Simulation terminates when both conditions are met:
-1. Position error < 0.5°
-2. Error change rate < 0.5° per step
-
-### Data Flow Per Step
-
-1. **Encoder reads actual position**
-   - Applies quantization (1000 PPR)
-   - Adds Gaussian noise (σ=0.1°)
-   - Returns measured position
-
-2. **Error calculation**
-   - error = target - measured
-   - delta_error = error - previous_error
-
-3. **Controller computes output**
-   - Fuzzy: Fuzzification → Rule evaluation → Defuzzification + Integral
-   - PID: P×error + I×∫error + D×d(error)/dt
-
-4. **Motor receives voltage**
-   - voltage = control × 0.082
-   - 10 integration substeps (Euler method)
-   - Updates position, velocity, current
-
-5. **Logging and convergence check**
-
-## Example Output
-
-```
-=== DC Motor Position Control with Fuzzy Logic ===
-Controller: Fuzzy Logic with Integral
-Encoder: 1000 PPR (0.36°/count), noise σ=0.10°
-Initial Position: -90.00°, Target: 45.00°
-Time step: 0.001s
-
-Step  20 (0.020s): Actual=-67.23°, Measured=-67.32°, Err=112.32°, V=8.20V
-Step  40 (0.040s): Actual=-21.45°, Measured=-21.60°, Err=66.60°, V=8.20V
-Step  60 (0.060s): Actual=15.67°, Measured=15.48°, Err=29.52°, V=8.20V
-Step  80 (0.080s): Actual=35.89°, Measured=35.64°, Err=9.36°, V=6.89V
-Step 100 (0.100s): Actual=42.34°, Measured=42.12°, Err=2.88°, V=3.45V
-...
-Converged at step 156 (0.156s)
-
-=== Final State ===
-Actual Position: 44.89°
-Measured Position: 44.82°
-Error: 0.18°
-```
-
-## Comparing Controllers
-
-| Aspect | Fuzzy Logic | PID |
-|--------|-------------|-----|
-| Tuning | Rule-based, intuitive | Gain parameters (Kp, Ki, Kd) |
-| Non-linearity | Inherently handles | Linear response |
-| Steady-state | Integral term added | Integral term built-in |
+| Aspect | Fuzzy logic | PID |
+|---|---|---|
+| Tuning | Rule-based, intuitive | Three gains (Kp, Ki, Kd) |
+| Non-linearity | Handled inherently | Linear response |
+| Steady state | Integral term added on | Integral term built in |
 | Overshoot | Generally lower | Depends on tuning |
 | Complexity | Higher (9 rules) | Lower (3 gains) |
 
-## Extending the Simulation
+## Extending
 
-### Adding a New Controller
+Add a controller by implementing the `PositionController` protocol — no changes to the runner
+are needed:
 
-1. Create `new_controller.py`:
 ```python
-class NewController:
-    def __init__(self):
-        # Initialize controller
-        pass
+class MyController:
+    name = "MyController"
 
-    def compute_control(self, error, delta_error, dt):
-        # Return control signal in range [-100, 100]
-        return control_signal
+    def set_target(self, target_deg: float) -> None: ...
+    def compute(self, measured_deg: float, dt: float) -> float: ...
+    def reset(self) -> None: ...
+
+run_simulation(MyController(), -90.0, 45.0)
 ```
 
-2. Import in `main.py` and add simulation function
-3. Update CLI argument parsing
+## Development
 
-### Modifying Motor Parameters
+```bash
+pytest                        # full suite with an 80% coverage gate
+pytest -m "not slow"          # skip the full-resolution control surface
+ruff check . && ruff format --check .
+mypy src
+```
 
-Edit `motor_parameters.py` to change:
-- Motor physical constants (J, K_m, K_b, R, L, K_f)
-- Control parameters (DT, VOLTAGE_SCALE)
-- Encoder settings (PPR, noise level)
-- Convergence thresholds
+### Versioning
+
+`version.txt` is the single source of truth, and it starts at `1.0.0`. Every
+merge to `main` bumps it automatically from the
+[Conventional Commits](https://www.conventionalcommits.org/) in that merge, then
+tags and publishes the result:
+
+| Commit | Bump |
+|---|---|
+| `feat!: ...` or a `BREAKING CHANGE:` footer | major |
+| `feat: ...` | minor |
+| anything else (including a merge with no conventional commits) | patch |
+
+Preview what a merge would produce without changing anything:
+
+```bash
+python scripts/bump_version.py --since v1.0.0
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
 
 ## License
 
-© 2025 Nagy Richárd.
-This project was created as part of the **Intelligent Control Systems** course.
+MIT — see [LICENSE](LICENSE).
 
-It is intended for **educational and prototyping purposes only**.
-Commercial use, distribution, or modification requires **prior written permission** from the author.
+© 2025 Nagy Richárd. Created as part of the **Intelligent Control Systems** course.

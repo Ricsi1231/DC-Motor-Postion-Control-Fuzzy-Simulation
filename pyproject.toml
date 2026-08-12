@@ -1,0 +1,145 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dc-motor-fuzzy-sim"
+dynamic = ["version"]
+description = "DC motor position control simulation comparing fuzzy logic and PID control"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Nagy Richárd" }]
+keywords = [
+  "control-systems",
+  "fuzzy-logic",
+  "pid",
+  "dc-motor",
+  "simulation",
+  "encoder",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Education",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Typing :: Typed",
+]
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "networkx>=3.0",
+  "scikit-fuzzy>=0.5",
+  "matplotlib>=3.7",
+  "simple-pid>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=5",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "build>=1.2",
+  "twine>=5.1",
+  "pre-commit>=3.7",
+]
+
+[project.scripts]
+dc-motor-sim = "dc_motor_sim.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Ricsi1231/DC-Motor-Postion-Control-Fuzzy-Simulation"
+Repository = "https://github.com/Ricsi1231/DC-Motor-Postion-Control-Fuzzy-Simulation"
+Issues = "https://github.com/Ricsi1231/DC-Motor-Postion-Control-Fuzzy-Simulation/issues"
+Changelog = "https://github.com/Ricsi1231/DC-Motor-Postion-Control-Fuzzy-Simulation/blob/main/CHANGELOG.md"
+
+# ---------------------------------------------------------------- build/version
+
+# version.txt is the single source of truth. CI bumps it on every merge to main
+# (see .github/workflows/release.yml) and tags the result v<version>.
+[tool.hatch.version]
+path = "version.txt"
+pattern = "(?P<version>\\S+)"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dc_motor_sim"]
+
+[tool.hatch.build.targets.sdist]
+# Keep the 9 MB seminar paper and CI config out of the distributions. The
+# golden traces under tests/data stay in: the sdist ships tests, and the
+# characterization suite cannot run without them.
+exclude = ["/docs/paper", "/.github", "/.venv"]
+
+# ---------------------------------------------------------------------- pytest
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"] # so the release tooling can be unit tested
+addopts = """
+  -q --strict-markers --strict-config
+  --cov=dc_motor_sim --cov-report=term-missing --cov-fail-under=80
+"""
+markers = ["slow: long-running tests (full-resolution fuzzy control surface)"]
+filterwarnings = [
+  "error::DeprecationWarning:dc_motor_sim.*",
+  # scikit-fuzzy calls np.maximum/np.minimum with three positional arguments.
+  # Upstream issue; nothing we can fix from here, and it fires once per rule.
+  "ignore:Passing more than 2 positional arguments to np.maximum:DeprecationWarning",
+]
+
+# -------------------------------------------------------------------- coverage
+
+[tool.coverage.run]
+source = ["dc_motor_sim"]
+branch = true
+# __main__.py only runs in a subprocess, where coverage does not follow.
+omit = ["*/__main__.py"]
+
+[tool.coverage.report]
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "\\.\\.\\.",
+]
+
+# ------------------------------------------------------------------------ ruff
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+extend-exclude = ["*.md"] # do not reformat code samples inside the docs
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF", "ARG", "C4", "PTH"]
+ignore = [
+  "N803", # allow physics-style argument names (J, R, L, K_m ...)
+  "N806",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# SIM300 misfires on `value == pytest.approx(...)`, which is the idiomatic order.
+"tests/**" = ["ARG001", "SIM300"]
+
+# ------------------------------------------------------------------------ mypy
+
+[tool.mypy]
+# NumPy's bundled stubs use `type` statements, which mypy only parses when
+# targeting 3.12+. The 3.10 floor is enforced by the CI test matrix instead.
+python_version = "3.12"
+strict = true
+files = ["src"]
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["skfuzzy.*", "simple_pid.*", "mpl_toolkits.*"]
+ignore_missing_imports = true

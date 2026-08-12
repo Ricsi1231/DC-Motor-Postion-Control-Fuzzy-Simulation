@@ -1,91 +1,70 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#
+# Convenience wrapper around the dc-motor-sim console script, kept for the
+# key=value calling convention used before the package restructure.
+#
+# Usage:
+#   ./run_simulation.sh start_position=<deg> end_position=<deg> [controller=<fuzzy|pid>]
+#
+# Examples:
+#   ./run_simulation.sh start_position=-90 end_position=45
+#   ./run_simulation.sh start_position=-90 end_position=45 controller=pid
+#
+# Any other argument is forwarded to dc-motor-sim unchanged, so flags such as
+# --no-plot, --seed, and --output-dir work here too.
 
-# DC Motor Position Control - Run Simulation Script
-# Usage: ./run_simulation.sh start_position=<value> end_position=<value> [controller=<fuzzy|pid>]
-# Example: ./run_simulation.sh start_position=-90 end_position=45
-# Example: ./run_simulation.sh start_position=-90 end_position=45 controller=pid
+set -euo pipefail
 
-# Parse arguments
+VENV_DIR="${VENV_DIR:-.venv}"
+
 START_POSITION=""
 END_POSITION=""
 CONTROLLER="fuzzy"
+EXTRA_ARGS=()
+
+usage() {
+    echo "Usage: $0 start_position=<deg> end_position=<deg> [controller=<fuzzy|pid>] [extra flags]"
+    echo "Example: $0 start_position=-90 end_position=45 controller=pid"
+}
 
 for arg in "$@"; do
-    case $arg in
-        start_position=*)
-            START_POSITION="${arg#*=}"
-            ;;
-        end_position=*)
-            END_POSITION="${arg#*=}"
-            ;;
-        controller=*)
-            CONTROLLER="${arg#*=}"
-            ;;
-        *)
-            echo "Unknown argument: $arg"
-            echo "Usage: ./run_simulation.sh start_position=<value> end_position=<value> [controller=<fuzzy|pid>]"
-            echo "Example: ./run_simulation.sh start_position=-90 end_position=45"
-            echo "Example: ./run_simulation.sh start_position=-90 end_position=45 controller=pid"
-            exit 1
-            ;;
+    case "$arg" in
+        start_position=*) START_POSITION="${arg#*=}" ;;
+        end_position=*)   END_POSITION="${arg#*=}" ;;
+        controller=*)     CONTROLLER="${arg#*=}" ;;
+        -h|--help)        usage; exit 0 ;;
+        *)                EXTRA_ARGS+=("$arg") ;;
     esac
 done
 
-# Check if both position arguments are provided
 if [ -z "$START_POSITION" ] || [ -z "$END_POSITION" ]; then
-    echo "Error: Both start_position and end_position must be provided"
-    echo "Usage: ./run_simulation.sh start_position=<value> end_position=<value> [controller=<fuzzy|pid>]"
-    echo "Example: ./run_simulation.sh start_position=-90 end_position=45"
-    echo "Example: ./run_simulation.sh start_position=-90 end_position=45 controller=pid"
-    exit 1
+    echo "Error: both start_position and end_position must be provided" >&2
+    usage >&2
+    exit 2
 fi
 
-# Validate controller type
 if [ "$CONTROLLER" != "fuzzy" ] && [ "$CONTROLLER" != "pid" ]; then
-    echo "Error: Invalid controller type '$CONTROLLER'. Use 'fuzzy' or 'pid'"
-    exit 1
+    echo "Error: invalid controller '$CONTROLLER'; use 'fuzzy' or 'pid'" >&2
+    exit 2
 fi
 
-# Check if virtual environment exists
-if [ ! -d "venv" ]; then
-    echo "Error: Virtual environment not found"
-    echo "Please run ./setup.sh first to set up the environment"
-    exit 1
-fi
-
-# Activate virtual environment
-echo "Activating virtual environment..."
-source venv/bin/activate
-
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to activate virtual environment"
-    exit 1
-fi
-
-# Run the simulation
-echo "=========================================="
-echo "Starting DC Motor Position Control Simulation"
-echo "Start Position: $START_POSITION degrees"
-echo "End Position: $END_POSITION degrees"
-echo "Controller: $CONTROLLER"
-echo "=========================================="
-echo ""
-
-python main.py "$START_POSITION" "$END_POSITION" "$CONTROLLER"
-
-# Capture exit status
-EXIT_STATUS=$?
-
-if [ $EXIT_STATUS -eq 0 ]; then
-    echo ""
-    echo "=========================================="
-    echo "Simulation completed successfully!"
-    echo "=========================================="
+# Prefer the project virtualenv, then anything already on PATH.
+if [ -x "$VENV_DIR/bin/dc-motor-sim" ]; then
+    RUNNER=("$VENV_DIR/bin/dc-motor-sim")
+elif command -v dc-motor-sim >/dev/null 2>&1; then
+    RUNNER=(dc-motor-sim)
 else
-    echo ""
-    echo "=========================================="
-    echo "Simulation failed with exit code: $EXIT_STATUS"
-    echo "=========================================="
+    echo "Error: dc-motor-sim is not installed." >&2
+    echo "Run ./setup.sh first, or 'pip install dc-motor-fuzzy-sim'." >&2
+    exit 1
 fi
 
-exit $EXIT_STATUS
+echo "=========================================="
+echo "DC Motor Position Control Simulation"
+echo "  Start position: ${START_POSITION} deg"
+echo "  Target position: ${END_POSITION} deg"
+echo "  Controller: ${CONTROLLER}"
+echo "=========================================="
+
+exec "${RUNNER[@]}" "$START_POSITION" "$END_POSITION" \
+    --controller "$CONTROLLER" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
