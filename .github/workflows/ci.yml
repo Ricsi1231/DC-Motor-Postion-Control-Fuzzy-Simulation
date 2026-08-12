@@ -1,8 +1,8 @@
 name: CI
 
+# Pushes to main are covered by release.yml, which calls this workflow before
+# publishing. Triggering on main here too would run the whole matrix twice.
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_call:
   workflow_dispatch:
@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # hatch-vcs derives the version from tags
+          fetch-depth: 0 # the version-bump tests read commit history
 
       - uses: actions/setup-python@v5
         with:
@@ -95,8 +95,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # required: the version comes from the git tag
 
       - uses: actions/setup-python@v5
         with:

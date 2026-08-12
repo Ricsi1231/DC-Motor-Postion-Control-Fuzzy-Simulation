@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
@@ -87,7 +88,20 @@ class TestSuccessfulRuns:
     def test_verbose_emits_progress_logs(self, capsys: pytest.CaptureFixture[str]) -> None:
         main(["-90", "45", "--no-plot", "--seed", "3", "--verbose"])
 
+        assert logging.getLogger("dc_motor_sim").level == logging.INFO
         assert "Simulation summary" in capsys.readouterr().out
+
+    def test_verbose_still_applies_on_a_later_call(self) -> None:
+        """Regression: basicConfig is a one-shot, so the level must be set directly.
+
+        Calling main() without --verbose first used to leave the logger stuck
+        at WARNING for every subsequent call.
+        """
+        main(["0", "5", "--no-plot", "--seed", "1"])
+        assert logging.getLogger("dc_motor_sim").level == logging.WARNING
+
+        main(["0", "5", "--no-plot", "--seed", "1", "--verbose"])
+        assert logging.getLogger("dc_motor_sim").level == logging.INFO
 
 
 class TestPlotting:

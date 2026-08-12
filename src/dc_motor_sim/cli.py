@@ -113,11 +113,14 @@ def _make_controller(kind: str, sim_params: SimParams) -> PositionController:
 
 
 def _configure_logging(verbose: bool) -> None:
-    logging.basicConfig(
-        level=logging.INFO if verbose else logging.WARNING,
-        format="%(message)s",
-        stream=sys.stderr,
-    )
+    """Route package logs to stderr at the requested level.
+
+    ``main()`` is callable more than once in a single process, and
+    ``basicConfig`` is a no-op once the root logger has handlers. So the level
+    is set explicitly, otherwise a later ``--verbose`` call would be ignored.
+    """
+    logging.basicConfig(format="%(message)s", stream=sys.stderr)
+    logger.setLevel(logging.INFO if verbose else logging.WARNING)
 
 
 def main(argv: list[str] | None = None) -> int:

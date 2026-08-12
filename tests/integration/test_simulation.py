@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 
 import numpy as np
 import pytest
@@ -211,6 +212,17 @@ class TestMetrics:
         result = run_simulation(PIDMotorController(), 30.0, 30.0, encoder_params=NOISELESS)
 
         assert result.overshoot == 0.0
+
+    @pytest.mark.parametrize(("start", "target"), [(0.0, 90.0), (45.0, -45.0)])
+    def test_overshoot_is_never_negative_zero(
+        self, controller_kind: str, start: float, target: float
+    ) -> None:
+        """A -0.0 peak would render as "-0.0000" in the CLI summary."""
+        result = run_simulation(
+            make_controller(controller_kind), start, target, encoder_params=NOISELESS
+        )
+
+        assert math.copysign(1.0, result.overshoot) > 0
 
     def test_overshoot_is_non_negative(self, controller_kind: str) -> None:
         result = run_simulation(

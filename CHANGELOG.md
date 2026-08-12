@@ -14,6 +14,15 @@ tolerance of 1e-12 (`tests/integration/test_characterization.py`).
 
 ### Added
 
+- `version.txt` at the repository root as the single source of truth for the
+  version, starting at `1.0.0`. The build backend reads it, so there is no
+  version string in the source and no dependency on git metadata — an sdist can
+  now be rebuilt without a git checkout.
+- `scripts/bump_version.py`, which derives the next semantic version from
+  Conventional Commits (`feat!`/`BREAKING CHANGE:` → major, `feat` → minor,
+  anything else → patch, minimum patch).
+- Automatic release on every merge to `main`: CI bumps `version.txt`, commits it
+  back with `[skip ci]`, tags `vX.Y.Z`, then builds and publishes.
 - `src/` layout package `dc_motor_sim`, published to PyPI as `dc-motor-fuzzy-sim`.
 - `dc-motor-sim` console script and `python -m dc_motor_sim` entry point, with a
   proper `argparse` interface: `--controller`, `--output-dir`, `--no-show`,
@@ -68,7 +77,16 @@ tolerance of 1e-12 (`tests/integration/test_characterization.py`).
 - `RotaryEncoder.get_velocity` always returned `0.0`. `read_position` overwrote
   the stored previous reading with the current one, so the difference was
   structurally always zero. The signature is now `get_velocity(dt)`, matching
-  what the README always documented.
+  what the README always documented. It now correctly returns `0.0` until two
+  samples exist, rather than differencing against an initial `0.0` sentinel.
+- `--verbose` was ignored on any call to `cli.main()` after the first in the
+  same process, because `logging.basicConfig` is a no-op once the root logger
+  has handlers. The level is now set explicitly.
+- `SimulationResult.overshoot` could return `-0.0` for a negative-going move
+  that landed exactly on target, rendering as `-0.0000` in the CLI summary.
+- `viz.backend.ensure_backend` did not latch its "select once" flag on the
+  `MPLBACKEND` path, so a later call could force a backend switch underneath
+  figures that were already open.
 - Importing the plotting code no longer forces the `TkAgg` backend at import
   time, and plots no longer unconditionally block on `plt.show()`. The package
   is now importable and usable on a headless machine.

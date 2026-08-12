@@ -34,10 +34,29 @@ from dc_motor_sim.sensors.encoder import RotaryEncoder
 from dc_motor_sim.simulation.result import SimulationResult
 from dc_motor_sim.simulation.runner import run_simulation
 
-try:  # pragma: no cover - trivial packaging fallback
-    from dc_motor_sim._version import __version__
-except ImportError:  # pragma: no cover - running from a source tree without a build
-    __version__ = "0.0.0+unknown"
+
+def _detect_version() -> str:
+    """Resolve the package version.
+
+    Normally this comes from the installed distribution metadata, which the
+    build backend fills in from ``version.txt``. When running straight from an
+    uninstalled source checkout there is no metadata, so fall back to reading
+    ``version.txt`` directly.
+    """
+    from importlib import metadata
+
+    try:
+        return metadata.version("dc-motor-fuzzy-sim")
+    except metadata.PackageNotFoundError:  # pragma: no cover - uninstalled checkout
+        from pathlib import Path
+
+        version_file = Path(__file__).resolve().parents[2] / "version.txt"
+        if version_file.is_file():
+            return version_file.read_text(encoding="utf-8").strip()
+        return "0.0.0+unknown"
+
+
+__version__ = _detect_version()
 
 __all__ = [
     "DEFAULT_ENCODER",

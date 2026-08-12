@@ -74,10 +74,32 @@ class TestNoise:
 
 
 class TestVelocity:
-    def test_returns_zero_before_two_readings(self, noiseless_encoder: RotaryEncoder) -> None:
+    def test_returns_zero_before_any_reading(self, noiseless_encoder: RotaryEncoder) -> None:
         assert noiseless_encoder.get_velocity(dt=0.001) == 0.0
 
-        noiseless_encoder.read_position(0.0)
+    @pytest.mark.parametrize("first", [0.0, 45.0, -90.0])
+    def test_returns_zero_after_a_single_reading(
+        self, noiseless_encoder: RotaryEncoder, first: float
+    ) -> None:
+        """One sample is not enough to difference.
+
+        Regression: the previous reading was seeded from a 0.0 sentinel, so a
+        single read at any non-zero angle produced a large bogus velocity.
+        """
+        noiseless_encoder.read_position(first)
+
+        assert noiseless_encoder.get_velocity(dt=0.001) == 0.0
+
+    @pytest.mark.parametrize("first", [0.0, 45.0, -90.0])
+    def test_returns_zero_after_reset_and_a_single_reading(
+        self, noiseless_encoder: RotaryEncoder, first: float
+    ) -> None:
+        noiseless_encoder.read_position(10.0)
+        noiseless_encoder.read_position(20.0)
+
+        noiseless_encoder.reset()
+        noiseless_encoder.read_position(first)
+
         assert noiseless_encoder.get_velocity(dt=0.001) == 0.0
 
     def test_differences_the_last_two_readings(self, noiseless_encoder: RotaryEncoder) -> None:

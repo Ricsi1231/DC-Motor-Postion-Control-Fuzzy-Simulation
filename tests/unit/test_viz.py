@@ -8,6 +8,9 @@ called ``matplotlib.use('TkAgg')`` at import time and always blocked on
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -84,6 +87,46 @@ class TestBackend:
         monkeypatch.delenv("DISPLAY", raising=False)
 
         assert has_display() is True
+
+    def test_selection_latches_after_the_first_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Selecting twice could force a switch under already-open figures."""
+        monkeypatch.setenv("MPLBACKEND", "Agg")
+        monkeypatch.setattr(backend_module, "_backend_ready", False)
+        ensure_backend()
+
+        assert backend_module._backend_ready is True
+
+    @pytest.mark.skipif(
+        sys.platform in ("win32", "darwin"),
+        reason="a display is always assumed on Windows and macOS",
+    )
+    def test_falls_back_to_agg_with_no_display(self) -> None:
+        """The branch that matters in CI, exercised in a truly headless process.
+
+        It cannot be tested in-process: the backend is global, latched, and
+        already resolved by the time this test runs.
+        """
+        script = (
+            "from dc_motor_sim.viz.backend import ensure_backend, has_display;"
+            "print(has_display(), ensure_backend())"
+        )
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("DISPLAY", "WAYLAND_DISPLAY", "MPLBACKEND")
+        }
+
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=True,
+        )
+
+        display, chosen = result.stdout.split()
+        assert display == "False"
+        assert chosen.lower() == "agg"
 
 
 class TestPlotsReturnFigures:

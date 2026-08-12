@@ -38,10 +38,13 @@ def ensure_backend() -> str:
 
     import matplotlib
 
-    if _backend_ready or os.environ.get("MPLBACKEND"):
+    if _backend_ready:
         return str(matplotlib.get_backend())
 
-    if not has_display():
+    # Latch on the env-var path too, so "select once" holds on every route and
+    # a later call can never re-enter and force a backend switch underneath
+    # figures that are already open.
+    if not os.environ.get("MPLBACKEND") and not has_display():
         matplotlib.use("Agg", force=True)
 
     _backend_ready = True

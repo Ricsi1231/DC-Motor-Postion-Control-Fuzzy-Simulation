@@ -120,6 +120,7 @@ result = run_simulation(
 ## Project structure
 
 ```
+version.txt                # single source of truth for the version
 src/dc_motor_sim/
 ├── config.py              # frozen, validated parameter dataclasses
 ├── cli.py                 # argparse command line interface
@@ -133,6 +134,7 @@ src/dc_motor_sim/
 │   ├── runner.py          # run_simulation — the closed loop
 │   └── result.py          # SimulationResult
 └── viz/                   # backend selection + plotting
+scripts/bump_version.py    # semver bump used by the release pipeline
 tests/
 ├── unit/                  # per-module tests
 └── integration/           # closed-loop, CLI, and golden-trace tests
@@ -230,8 +232,26 @@ ruff check . && ruff format --check .
 mypy src
 ```
 
-Commits follow [Conventional Commits](https://www.conventionalcommits.org/). See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and the release procedure.
+### Versioning
+
+`version.txt` is the single source of truth, and it starts at `1.0.0`. Every
+merge to `main` bumps it automatically from the
+[Conventional Commits](https://www.conventionalcommits.org/) in that merge, then
+tags and publishes the result:
+
+| Commit | Bump |
+|---|---|
+| `feat!: ...` or a `BREAKING CHANGE:` footer | major |
+| `feat: ...` | minor |
+| anything else (including a merge with no conventional commits) | patch |
+
+Preview what a merge would produce without changing anything:
+
+```bash
+python scripts/bump_version.py --since v1.0.0
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
 
 ## License
 

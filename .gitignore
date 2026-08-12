@@ -134,9 +134,6 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Version file generated at build time by hatch-vcs
-src/dc_motor_sim/_version.py
-
 # Environments
 .env
 .envrc

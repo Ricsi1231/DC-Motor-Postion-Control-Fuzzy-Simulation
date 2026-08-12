@@ -94,7 +94,9 @@ class SimulationResult:
         if span == 0:
             return 0.0
         beyond = (self.actual_position - self.target_deg) / span
-        return float(max(beyond.max(), 0.0))
+        # 0.0 first: max() returns its first argument on a tie, which keeps a
+        # -0.0 peak from being reported as "-0.0000".
+        return max(0.0, float(beyond.max()))
 
     def summary(self) -> dict[str, float | int | bool | str]:
         """Return the scalar metrics of the run, for logging or reporting."""

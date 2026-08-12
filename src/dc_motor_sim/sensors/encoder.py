@@ -39,6 +39,9 @@ class RotaryEncoder:
         self._rng = np.random.default_rng() if rng is None else rng
         self.count = 0
         self.last_reading_deg = 0.0
+        # Tracked separately from last_reading_deg, which starts at a 0.0
+        # sentinel that must never be mistaken for a real sample.
+        self._has_reading = False
         self._previous_reading_deg: float | None = None
 
     @property
@@ -69,8 +72,10 @@ class RotaryEncoder:
             measured += float(self._rng.normal(0.0, self.params.noise_std))
 
         self.count = counts
-        self._previous_reading_deg = self.last_reading_deg
+        if self._has_reading:
+            self._previous_reading_deg = self.last_reading_deg
         self.last_reading_deg = measured
+        self._has_reading = True
 
         return measured
 
@@ -105,4 +110,5 @@ class RotaryEncoder:
         """Clear the count and reading history."""
         self.count = 0
         self.last_reading_deg = 0.0
+        self._has_reading = False
         self._previous_reading_deg = None

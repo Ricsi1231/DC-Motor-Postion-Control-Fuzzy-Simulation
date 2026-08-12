@@ -1,13 +1,20 @@
 name: Release
 
-# Push a tag to cut a release:
-#   git tag v1.1.0 && git push origin v1.1.0
-# Pre-release tags (v1.1.0rc1, v1.1.0a1, v1.1.0b1) go to TestPyPI only, so the
-# whole pipeline can be rehearsed without burning a real version number.
+# Every merge to main cuts a release.
+#
+#   1. `version` classifies the commits since the last tag (Conventional
+#      Commits: feat -> minor, feat!/BREAKING CHANGE -> major, anything else
+#      -> patch), rewrites version.txt, commits it back to main, and tags
+#      v<version>.
+#   2. `ci` runs the full lint/type/test matrix.
+#   3. The remaining jobs build and publish that tag.
+#
+# The bump commit carries [skip ci], so it does not re-trigger this workflow.
+# A tag can also be pushed by hand, which skips step 1 and publishes it as is.
 on:
   push:
+    branches: [main]
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
-  workflow_dispatch:
 
 concurrency:
   group: release-${{ github.ref }}
@@ -17,21 +24,80 @@ permissions:
   contents: read
 
 jobs:
+  version:
+    name: Bump version and tag
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # commit version.txt and push the tag
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+      level: ${{ steps.bump.outputs.level }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the bump is computed from commit history
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compute and apply the bump
+        id: bump
+        run: |
+          set -euo pipefail
+          PREVIOUS="$(git describe --tags --abbrev=0 2>/dev/null || echo '')"
+          echo "Previous tag: ${PREVIOUS:-<none>}"
+
+          python scripts/bump_version.py \
+            --since "$PREVIOUS" --write --format github >> "$GITHUB_OUTPUT"
+
+          cat "$GITHUB_OUTPUT"
+
+      - name: Fail if the tag already exists
+        run: |
+          if git rev-parse -q --verify "refs/tags/${{ steps.bump.outputs.tag }}" >/dev/null; then
+            echo "::error::Tag ${{ steps.bump.outputs.tag }} already exists"
+            exit 1
+          fi
+
+      - name: Commit and tag
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add version.txt
+          git commit -m "chore(release): ${{ steps.bump.outputs.tag }} [skip ci]"
+          git tag -a "${{ steps.bump.outputs.tag }}" \
+                  -m "Release ${{ steps.bump.outputs.tag }}"
+
+          git push origin HEAD:main
+          git push origin "${{ steps.bump.outputs.tag }}"
+
   ci:
     name: CI
+    needs: [version]
+    # Also run for a hand-pushed tag, where the version job is skipped.
+    if: always() && !cancelled() && (needs.version.result == 'success' || github.ref_type == 'tag')
     uses: ./.github/workflows/ci.yml
 
   build:
     name: Build and verify
-    needs: ci
+    needs: [version, ci]
+    if: always() && !cancelled() && needs.ci.result == 'success'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # hatch-vcs needs the full history and tags
+          # Check out the tag just created, or the tag that triggered the run.
+          ref: ${{ needs.version.outputs.tag || github.ref }}
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -47,30 +113,31 @@ jobs:
       - name: Check metadata
         run: python -m twine check --strict dist/*
 
-      - name: Resolve and verify version
+      - name: Verify the built version matches version.txt and the tag
         id: version
         env:
-          REF_TYPE: ${{ github.ref_type }}
-          TAG_NAME: ${{ github.ref_name }}
+          EXPECTED_TAG: ${{ needs.version.outputs.tag || github.ref_name }}
         run: |
           python -m pip install packaging
-          # Read the version from the built wheel filename rather than importing
-          # the package, so this checks exactly what will be published.
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import os, pathlib
           from packaging.utils import parse_wheel_filename
           from packaging.version import Version
 
           wheel = next(pathlib.Path("dist").glob("*.whl"))
-          _, version, _, _ = parse_wheel_filename(wheel.name)
+          _, built, _, _ = parse_wheel_filename(wheel.name)
 
-          if os.environ["REF_TYPE"] == "tag":
-              tag = Version(os.environ["TAG_NAME"].lstrip("v"))
-              if tag != version:
-                  raise SystemExit(f"::error::Tag {tag} does not match built version {version}")
+          declared = Version(pathlib.Path("version.txt").read_text().strip())
+          if built != declared:
+              raise SystemExit(f"::error::Wheel is {built} but version.txt says {declared}")
 
-          print(f"version={version}")
-          print(f"prerelease={str(version.is_prerelease or version.is_devrelease).lower()}")
+          expected = os.environ["EXPECTED_TAG"]
+          if expected.startswith("v") and Version(expected[1:]) != built:
+              raise SystemExit(f"::error::Tag {expected} does not match built version {built}")
+
+          print(f"version={built}")
+          print(f"tag=v{built}")
+          print(f"prerelease={str(built.is_prerelease or built.is_devrelease).lower()}")
           PY
           cat "$GITHUB_OUTPUT"
 
@@ -79,7 +146,6 @@ jobs:
           name: dist
           path: dist/
           if-no-files-found: error
-          overwrite: true
 
   testpypi:
     name: Publish to TestPyPI
@@ -125,7 +191,7 @@ jobs:
   github-release:
     name: Publish GitHub Release
     needs: [build, pypi]
-    if: always() && needs.build.result == 'success' && github.ref_type == 'tag'
+    if: always() && !cancelled() && needs.build.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the release
@@ -145,6 +211,7 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.build.outputs.tag }}
           files: dist/*
           generate_release_notes: true
           prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
