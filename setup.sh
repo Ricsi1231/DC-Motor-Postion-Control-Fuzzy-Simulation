@@ -1,48 +1,51 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#
+# Development environment setup.
+#
+# Creates a virtual environment in .venv and installs the package in editable
+# mode with its development dependencies.
+#
+# For plain use you do not need this script at all:
+#     pip install dc-motor-fuzzy-sim
 
-# DC Motor Position Control - Setup Script
-# This script sets up the virtual environment and installs dependencies
+set -euo pipefail
+
+VENV_DIR="${VENV_DIR:-.venv}"
+PYTHON="${PYTHON:-python3}"
 
 echo "=========================================="
-echo "DC Motor Position Control - Setup"
+echo "DC Motor Position Control - Dev Setup"
 echo "=========================================="
 
-echo "Creating virtual environment..."
-python3 -m venv venv
-
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to create virtual environment"
-    exit 1
+if [ ! -d "$VENV_DIR" ]; then
+    echo "Creating virtual environment in $VENV_DIR ..."
+    "$PYTHON" -m venv "$VENV_DIR"
+else
+    echo "Reusing existing virtual environment in $VENV_DIR"
 fi
 
-echo "Activating virtual environment..."
-source venv/bin/activate
+echo "Upgrading pip ..."
+"$VENV_DIR/bin/python" -m pip install --upgrade pip
 
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to activate virtual environment"
-    exit 1
+echo "Installing the package with development dependencies ..."
+"$VENV_DIR/bin/python" -m pip install -e '.[dev]'
+
+if "$VENV_DIR/bin/python" -c 'import pre_commit' 2>/dev/null; then
+    echo "Installing pre-commit hooks ..."
+    "$VENV_DIR/bin/pre-commit" install
 fi
 
-# Upgrade pip
-echo "Upgrading pip..."
-pip install --upgrade pip
-
-# Install required packages
-echo "Installing required packages from requirements.txt..."
-pip install -r requirements.txt
-
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to install packages"
-    exit 1
-fi
-
+echo
 echo "=========================================="
-echo "Setup completed successfully!"
+echo "Setup complete."
 echo "=========================================="
-echo ""
-echo "To activate the virtual environment manually, run:"
-echo "  source venv/bin/activate"
-echo ""
-echo "To run the simulation, use:"
-echo "  ./run_simulation.sh start_position=<value> end_position=<value>"
-echo "  Example: ./run_simulation.sh start_position=-90 end_position=45"
+echo
+echo "Activate the environment:"
+echo "  source $VENV_DIR/bin/activate"
+echo
+echo "Run the simulation:"
+echo "  dc-motor-sim -90 45"
+echo "  dc-motor-sim -90 45 --controller pid"
+echo
+echo "Run the tests:"
+echo "  pytest"

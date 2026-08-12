@@ -134,6 +134,9 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# Version file generated at build time by hatch-vcs
+src/dc_motor_sim/_version.py
+
 # Environments
 .env
 .envrc
@@ -205,3 +208,6 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Claude Code local settings (contains user info)
+**/.claude/settings.local.json

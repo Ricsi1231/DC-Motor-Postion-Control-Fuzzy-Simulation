@@ -1,0 +1,36 @@
+# Install once with: pre-commit install
+default_language_version:
+  python: python3
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+        # The seminar paper lives in docs/paper and is excluded from the
+        # distributions; nothing else that large belongs in the repo.
+        exclude: ^docs/paper/
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.0
+    hooks:
+      - id: mypy
+        files: ^src/
+        additional_dependencies:
+          - numpy
+          - matplotlib
+          - types-setuptools

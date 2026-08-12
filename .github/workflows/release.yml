@@ -1,0 +1,159 @@
+name: Release
+
+# Push a tag to cut a release:
+#   git tag v1.1.0 && git push origin v1.1.0
+# Pre-release tags (v1.1.0rc1, v1.1.0a1, v1.1.0b1) go to TestPyPI only, so the
+# whole pipeline can be rehearsed without burning a real version number.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build and verify
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # hatch-vcs needs the full history and tags
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Build
+        run: |
+          python -m pip install build twine
+          python -m build
+
+      - name: Check metadata
+        run: python -m twine check --strict dist/*
+
+      - name: Resolve and verify version
+        id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          python -m pip install packaging
+          # Read the version from the built wheel filename rather than importing
+          # the package, so this checks exactly what will be published.
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import os, pathlib
+          from packaging.utils import parse_wheel_filename
+          from packaging.version import Version
+
+          wheel = next(pathlib.Path("dist").glob("*.whl"))
+          _, version, _, _ = parse_wheel_filename(wheel.name)
+
+          if os.environ["REF_TYPE"] == "tag":
+              tag = Version(os.environ["TAG_NAME"].lstrip("v"))
+              if tag != version:
+                  raise SystemExit(f"::error::Tag {tag} does not match built version {version}")
+
+          print(f"version={version}")
+          print(f"prerelease={str(version.is_prerelease or version.is_devrelease).lower()}")
+          PY
+          cat "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          overwrite: true
+
+  testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    if: needs.build.outputs.prerelease == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/dc-motor-fuzzy-sim
+    permissions:
+      id-token: write # OIDC token for Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  pypi:
+    name: Publish to PyPI
+    needs: build
+    if: >-
+      needs.build.outputs.prerelease == 'false' &&
+      github.repository == 'Ricsi1231/DC-Motor-Postion-Control-Fuzzy-Simulation'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/dc-motor-fuzzy-sim
+    permissions:
+      id-token: write # Trusted Publishing: no API token secret needed
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Publish GitHub Release
+    needs: [build, pypi]
+    if: always() && needs.build.result == 'success' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+      id-token: write # sign the artifacts
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: dist/*
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
+          body: |
+            ## Install
+
+            ```bash
+            pip install dc-motor-fuzzy-sim==${{ needs.build.outputs.version }}
+            ```
+
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
+            for the full list of changes.
