@@ -45,6 +45,15 @@ tolerance of 1e-12 (`tests/integration/test_characterization.py`).
   with build provenance attestation.
 - `pyproject.toml`, `.pre-commit-config.yaml`, `CONTRIBUTING.md`, type hints
   throughout, and a `py.typed` marker.
+- `docs/article/` — an English write-up of the project with the four figures it
+  embeds, and a README recording how each is regenerated.
+- `scripts/article_figures.py`, which renders the two controller-comparison
+  figures from live simulation runs: a position trace for one move and seed, and
+  a convergence-rate sweep over several moves and encoder seeds. As committed,
+  that sweep converges in 81% of fuzzy runs against 100% of PID runs; the fuzzy
+  misses overshoot and stall roughly 5° past the setpoint, which the write-up
+  attributes to the membership functions being defined in absolute degrees
+  rather than relative to the commanded move.
 
 ### Changed
 
